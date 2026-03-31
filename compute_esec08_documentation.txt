@@ -3,7 +3,7 @@ DOCUMENTATION — compute_esec08()
 Schéma de classe ESeC 2008 (European Socio-economic Classification)
 ================================================================================
 
-VERSION : 1.0
+VERSION : 1.1
 FICHIER : compute_esec08.R
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -11,16 +11,20 @@ FICHIER : compute_esec08.R
 ────────────────────────────────────────────────────────────────────────────────
 
 La fonction `compute_esec08()` construit le schéma de classe ESeC 08 à partir
-de quatre variables d'entrée :
+de variables d'entrée harmonisées :
   - la profession codée en ISCO à 2 chiffres,
   - le statut d'emploi (salarié / indépendant),
   - la taille de l'unité locale (pour les indépendants),
-  - la position de supervision/encadrement (pour les salariés).
+  - la position de supervision/encadrement (pour les salariés),
+  - la présence ou non de salariés pour les indépendants.
 
 Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
   empstat      — statut d'emploi combiné (4 catégories)
   ESEC08       — classe ESeC numérique (1–9 ou -99)
   ESEC08_lbl   — classe ESeC sous forme de facteur étiqueté (optionnel)
+
+Cette fonction implémente les règles de classification ESeC 2008 sans inclure
+les étapes de préparation spécifiques à certaines bases de données (ex. EU-SILC).
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -29,12 +33,14 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   data <- compute_esec08(
     data,
-    ISCO2         = "nom_variable_isco2",
-    is_employee   = "nom_variable_statut",
-    nb_workers    = "nom_variable_taille",
-    is_supervisor = "nom_variable_supervision",
-    add_labels    = TRUE,     # optionnel, TRUE par défaut
-    suffix        = ""        # optionnel, "" par défaut
+    ISCO2                 = "nom_variable_isco2",
+    is_employee           = "nom_variable_statut",
+    nb_workers            = "nom_variable_taille",
+    is_supervisor         = "nom_variable_supervision",
+    selfemp_withemployee  = "nom_variable_independants",
+    active_var            = NULL,    # optionnel
+    add_labels            = TRUE,    # optionnel, TRUE par défaut
+    suffix                = ""       # optionnel, "" par défaut
   )
 
 
@@ -70,12 +76,32 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
                 Nom de la colonne indiquant si la personne encadre d'autres
                 travailleurs.
                 Codage attendu :
-                  1 = superviseur / encadrant (a des personnes sous sa
-                      responsabilité directe)
+                  1 = superviseur / encadrant
                   2 = non-superviseur
                 IMPORTANT : cette variable n'est utilisée que pour les
                 salariés (is_employee == 1). Pour les indépendants, sa
                 valeur peut être NA sans incidence sur le résultat.
+
+  selfemp_withemployee (character, obligatoire)
+                Nom de la colonne indiquant si un indépendant emploie
+                du personnel.
+                Codage attendu :
+                  1 = avec employés
+                  2 = sans employés
+                Cette variable est utilisée uniquement pour les indépendants.
+                Elle permet de corriger les incohérences fréquentes entre :
+                  - la taille de l’unité locale (nb_workers),
+                  - et le fait d’avoir effectivement des salariés.
+                En cas de contradiction, cette variable est prioritaire.
+
+  active_var    (character, optionnel, défaut = NULL)
+                Nom d’une variable indiquant si l’individu appartient à la
+                population active.
+                Codage attendu :
+                  1 = actif (occupé ou chômeur)
+                  0 = inactif
+                Si fourni, les individus codés 0 sont affectés à la valeur
+                -97 (hors population cible).
 
   add_labels    (logical, optionnel, défaut = TRUE)
                 Si TRUE, ajoute la colonne `ESEC08_lbl` contenant un facteur
@@ -114,12 +140,11 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
       8  Ouvriers qualifiés
       9  Agents d'entretien, manœuvres, livreurs
      -99 Non classifiable (information manquante ou code ISCO non affecté)
-     -98 Non classifiable (code sentinelle supplémentaire)
-     -97 Non classifiable (code sentinelle supplémentaire)
+     -97 Hors population cible (inactifs, si active_var est utilisé)
 
   ESEC08_lbl  (uniquement si add_labels = TRUE)
-    Facteur R reprenant les libellés ci-dessus. Les niveaux -99, -98 et -97
-    sont tous étiquetés "NA".
+    Facteur R reprenant les libellés ci-dessus. Les niveaux -99 et -97
+    sont étiquetés "NA".
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -129,14 +154,20 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
   Étape 1 — empstat
     La situation d'emploi est combinée en quatre catégories :
       - indépendant avec grande unité locale (≥10)      → se10+
-      - indépendant avec petite unité locale (<10)       → se<=10
-      - salarié encadrant                                → sup
-      - salarié sans encadrement                         → emp
+      - indépendant avec petite unité locale (<10)      → se<=10
+      - salarié encadrant                               → sup
+      - salarié sans encadrement                        → emp
+
+    Correction des indépendants :
+      En cas d’incohérence entre la taille de l’unité locale et la présence
+      effective de salariés, la variable selfemp_withemployee est prioritaire.
+      Ainsi, un indépendant déclaré sans employés est toujours classé en :
+        → se<=10
 
   Étape 2 — ESEC08
-    On part du code ISCO-2 comme valeur initiale, puis on écrase selon des
+    On part du code ISCO-2 comme valeur de départ, puis on écrase selon des
     tables de correspondance différentes pour chaque catégorie d'empstat.
-    Les règles sont appliquées dans l'ordre suivant, propre à chaque groupe :
+    Les règles sont appliquées dans l'ordre suivant :
       (a) Indépendants ≥10 salariés
       (b) Indépendants <10 salariés
       (c) Salariés superviseurs
@@ -144,8 +175,9 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   Étape 3 — Cas non classifiables
     Toute valeur restée "≥10" après recodage, ou NA, est remplacée par -99.
-    Cela concerne les répondants pour lesquels l'information sur le statut
-    d'emploi, la taille de l'unité ou la supervision est manquante.
+
+  Étape 4 — Restriction optionnelle
+    Si active_var est fourni, les individus inactifs sont codés -97.
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -160,7 +192,8 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
     isco2     = c(11, 23, 52, 62, 81, 14, 33, 91),
     statut    = c( 1,  1,  1,  2,  1,  2,  1,  1),
     taille    = c(NA, NA, NA,  1, NA,  2, NA, NA),
-    encadrant = c( 1,  2,  2, NA,  2, NA,  1,  2)
+    encadrant = c( 1,  2,  2, NA,  2, NA,  1,  2),
+    withempl  = c(NA, NA, NA,  2, NA,  1, NA, NA)
   )
 
   # Application de la fonction
@@ -168,7 +201,8 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
                        ISCO2         = "isco2",
                        is_employee   = "statut",
                        nb_workers    = "taille",
-                       is_supervisor = "encadrant")
+                       is_supervisor = "encadrant",
+                       selfemp_withemployee = "withempl")
 
   # Résultats
   table(df$ESEC08_lbl, useNA = "always")
@@ -181,19 +215,32 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   • La fonction ne modifie pas les colonnes d'entrée d'origine.
 
+  • La fonction suppose que les variables d’entrée sont déjà harmonisées.
+    En particulier, le statut d’emploi (is_employee) doit correctement
+    distinguer salariés et indépendants. Aucune reconstruction automatique
+    n’est effectuée.
+
+  • La classification ESeC s’applique à la population active, incluant
+    les personnes en emploi et les chômeurs (via leur dernière profession).
+    Les inactifs peuvent être exclus via le paramètre optionnel active_var.
+
+  • En cas d’incohérence entre le statut d’indépendant et la taille de
+    l’unité locale, la variable selfemp_withemployee est prioritaire.
+    Ce choix permet de corriger des incohérences observées notamment dans
+    certaines enquêtes comme l’EWCS ou EU-SILC.
+
   • Si un répondant est indépendant (is_employee == 2) mais que nb_workers
     est NA, empstat sera NA et la classe sera -99 (non classifiable).
-    Si le jeu de données source présente des incohérences entre le statut
-    d'indépendant et la taille de l'unité locale (comme dans l'EWCS 2024
-    via la variable selfemp_withemployees), ces corrections doivent être
-    appliquées sur nb_workers en amont, avant l'appel à la fonction.
 
   • Si un répondant est salarié (is_employee == 1) mais que is_supervisor
     est NA, empstat sera NA et la classe sera -99.
 
-  • Le paramètre `suffix` est utile lors de comparaisons méthodologiques (par ex. si la définition d'une variable source varie)
+  • La fonction n’implémente pas les règles spécifiques à certaines bases
+    de données (ex. EU-SILC : reconstruction du statut d’emploi, corrections
+    pays, gestion des répondants sélectionnés). Ces traitements doivent être
+    réalisés en amont si nécessaire.
 
-  • Les libellés de classe sont en français et sont repris de la classification adaptée pour le contexte belge par Girès, J. (2024) Les inégalités environnementales au travail en Belgique. Observatoire belge des inégalités. https://inegalites.be/Les-inegalites-environnementales#nh4-4
+  • Le paramètre `suffix` est utile lors de comparaisons méthodologiques.
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -212,8 +259,11 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
   Harrison, E. & Rose, D. (2006). The European Socio-economic Classification
   (ESeC) User Guide. University of Essex, Colchester.
 
-  Brousse, C. (2008). ESeC, projet européen de classification socio-économique. Courrier des statistiques, n°125.
+  Brousse, C. (2008). ESeC, projet européen de classification socio-économique.
+  Courrier des statistiques, n°125.
 
-  Girès, J. (2024) Les inégalités environnementales au travail en Belgique. Observatoire belge des inégalités. https://inegalites.be/Les-inegalites-environnementales#nh4-4
+  Girès, J. (2024) Les inégalités environnementales au travail en Belgique.
+  Observatoire belge des inégalités.
+  https://inegalites.be/Les-inegalites-environnementales#nh4-4
 
 ================================================================================
