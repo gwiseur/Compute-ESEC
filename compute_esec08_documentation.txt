@@ -77,15 +77,6 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
                 salariés (is_employee == 1). Pour les indépendants, sa
                 valeur peut être NA sans incidence sur le résultat.
 
-  selfemp_no_employees  (character, optionnel, défaut = NULL)
-                Nom de la colonne indiquant si l'indépendant n'a aucun salarié
-                (correspond à `selfemp_withemployees` dans l'EWCS 2024).
-                Codage attendu : 2 = indépendant sans salarié.
-                Lorsque cette variable est fournie, les répondants codés 2
-                sont forcés dans la catégorie `se<=10` (empstat == 2),
-                quelle que soit la valeur de `nb_workers`.
-                Si NULL (défaut), l'amendement n'est pas appliqué.
-
   add_labels    (logical, optionnel, défaut = TRUE)
                 Si TRUE, ajoute la colonne `ESEC08_lbl` contenant un facteur
                 R avec les libellés de classe en français.
@@ -128,7 +119,7 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   ESEC08_lbl  (uniquement si add_labels = TRUE)
     Facteur R reprenant les libellés ci-dessus. Les niveaux -99, -98 et -97
-    sont tous étiquetés "NA" (conformément au code source de référence).
+    sont tous étiquetés "NA".
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -142,10 +133,6 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
       - salarié encadrant                                → sup
       - salarié sans encadrement                         → emp
 
-    Amendement (si selfemp_no_employees est fourni) :
-    Les indépendants codés 2 dans cette variable (= sans aucun salarié)
-    sont forcés en se<=10, quelle que soit la valeur de nb_workers.
-
   Étape 2 — ESEC08
     On part du code ISCO-2 comme valeur initiale, puis on écrase selon des
     tables de correspondance différentes pour chaque catégorie d'empstat.
@@ -156,7 +143,7 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
       (d) Salariés non-superviseurs
 
   Étape 3 — Cas non classifiables
-    Toute valeur resté ≥10 après recodage, ou NA, est remplacée par -99.
+    Toute valeur restée "≥10" après recodage, ou NA, est remplacée par -99.
     Cela concerne les répondants pour lesquels l'information sur le statut
     d'emploi, la taille de l'unité ou la supervision est manquante.
 
@@ -170,20 +157,18 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   # Jeu de données fictif
   df <- data.frame(
-    isco2        = c(11, 23, 52, 62, 81, 14, 33, 91),
-    statut       = c( 1,  1,  1,  2,  1,  2,  1,  1),
-    taille       = c(NA, NA, NA,  1, NA,  2, NA, NA),
-    encadrant    = c( 1,  2,  2, NA,  2, NA,  1,  2),
-    sans_salarie = c(NA, NA, NA,  2, NA,  1, NA, NA)
+    isco2     = c(11, 23, 52, 62, 81, 14, 33, 91),
+    statut    = c( 1,  1,  1,  2,  1,  2,  1,  1),
+    taille    = c(NA, NA, NA,  1, NA,  2, NA, NA),
+    encadrant = c( 1,  2,  2, NA,  2, NA,  1,  2)
   )
 
-  # Application de la fonction (avec amendement indépendants sans salariés)
+  # Application de la fonction
   df <- compute_esec08(df,
-                       ISCO2                = "isco2",
-                       is_employee          = "statut",
-                       nb_workers           = "taille",
-                       is_supervisor        = "encadrant",
-                       selfemp_no_employees = "sans_salarie")
+                       ISCO2         = "isco2",
+                       is_employee   = "statut",
+                       nb_workers    = "taille",
+                       is_supervisor = "encadrant")
 
   # Résultats
   table(df$ESEC08_lbl, useNA = "always")
@@ -198,25 +183,17 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 
   • Si un répondant est indépendant (is_employee == 2) mais que nb_workers
     est NA, empstat sera NA et la classe sera -99 (non classifiable).
-    Exception : si selfemp_no_employees est fourni et vaut 2 pour ce
-    répondant, il sera forcé en se<=10 (empstat == 2) même si nb_workers
-    est NA.
+    Si le jeu de données source présente des incohérences entre le statut
+    d'indépendant et la taille de l'unité locale (comme dans l'EWCS 2024
+    via la variable selfemp_withemployees), ces corrections doivent être
+    appliquées sur nb_workers en amont, avant l'appel à la fonction.
 
   • Si un répondant est salarié (is_employee == 1) mais que is_supervisor
     est NA, empstat sera NA et la classe sera -99.
 
-  • Les niveaux sentinelles -98 et -97 sont inclus dans le facteur ESEC08_lbl
-    (label "NA") pour rester conformes au code source de référence. En
-    pratique, ces valeurs ne sont pas produites par la fonction elle-même.
+  • Le paramètre `suffix` est utile lors de comparaisons méthodologiques (par ex. si la définition d'une variable source varie)
 
-  • Le label des valeurs non classifiables est "NA" (chaîne de caractères),
-    conformément au code source de référence EWCS 2024.
-
-  • Le paramètre `suffix` est utile lors de comparaisons méthodologiques
-    (ex. tester différentes définitions de la supervision).
-
-  • Les libellés de classe sont en français. Pour une version anglophone,
-    il suffit de modifier le vecteur `labels` dans la section 5 du code.
+  • Les libellés de classe sont en français et sont repris de la classification adaptée pour le contexte belge par Girès, J. (2024) Les inégalités environnementales au travail en Belgique. Observatoire belge des inégalités. https://inegalites.be/Les-inegalites-environnementales#nh4-4
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -235,7 +212,8 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
   Harrison, E. & Rose, D. (2006). The European Socio-economic Classification
   (ESeC) User Guide. University of Essex, Colchester.
 
-  Le schéma de recodage est adapté de la syntaxe officielle EWCS 2024
-  (European Working Conditions Survey, Eurofound).
+  Brousse, C. (2008). ESeC, projet européen de classification socio-économique. Courrier des statistiques, n°125.
+
+  Girès, J. (2024) Les inégalités environnementales au travail en Belgique. Observatoire belge des inégalités. https://inegalites.be/Les-inegalites-environnementales#nh4-4
 
 ================================================================================
