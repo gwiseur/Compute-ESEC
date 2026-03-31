@@ -1,0 +1,241 @@
+================================================================================
+DOCUMENTATION — compute_esec08()
+Schéma de classe ESeC 2008 (European Socio-economic Classification)
+================================================================================
+
+VERSION : 1.0
+FICHIER : compute_esec08.R
+
+────────────────────────────────────────────────────────────────────────────────
+1. DESCRIPTION
+────────────────────────────────────────────────────────────────────────────────
+
+La fonction `compute_esec08()` construit le schéma de classe ESeC 08 à partir
+de quatre variables d'entrée :
+  - la profession codée en ISCO à 2 chiffres,
+  - le statut d'emploi (salarié / indépendant),
+  - la taille de l'unité locale (pour les indépendants),
+  - la position de supervision/encadrement (pour les salariés).
+
+Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
+  empstat      — statut d'emploi combiné (4 catégories)
+  ESEC08       — classe ESeC numérique (1–9 ou -99)
+  ESEC08_lbl   — classe ESeC sous forme de facteur étiqueté (optionnel)
+
+
+────────────────────────────────────────────────────────────────────────────────
+2. UTILISATION
+────────────────────────────────────────────────────────────────────────────────
+
+  data <- compute_esec08(
+    data,
+    ISCO2         = "nom_variable_isco2",
+    is_employee   = "nom_variable_statut",
+    nb_workers    = "nom_variable_taille",
+    is_supervisor = "nom_variable_supervision",
+    add_labels    = TRUE,     # optionnel, TRUE par défaut
+    suffix        = ""        # optionnel, "" par défaut
+  )
+
+
+────────────────────────────────────────────────────────────────────────────────
+3. PARAMÈTRES
+────────────────────────────────────────────────────────────────────────────────
+
+  data          (data.frame, obligatoire)
+                Le jeu de données contenant les variables d'entrée.
+
+  ISCO2         (character, obligatoire)
+                Nom de la colonne contenant le code ISCO-08 à 2 chiffres.
+                Valeurs attendues : entiers de 1 à 96.
+                Remarque : les codes à 1 chiffre (grands groupes) sont
+                également acceptés.
+
+  is_employee   (character, obligatoire)
+                Nom de la colonne indiquant le statut dans l'emploi.
+                Codage attendu :
+                  1 = salarié (employé)
+                  2 = indépendant (travailleur pour son propre compte)
+
+  nb_workers    (character, obligatoire)
+                Nom de la colonne indiquant la taille de l'unité locale.
+                Codage attendu :
+                  1 = moins de 10 travailleurs
+                  2 = 10 travailleurs ou plus
+                IMPORTANT : cette variable n'est utilisée que pour les
+                indépendants (is_employee == 2). Pour les salariés, sa
+                valeur peut être NA sans incidence sur le résultat.
+
+  is_supervisor (character, obligatoire)
+                Nom de la colonne indiquant si la personne encadre d'autres
+                travailleurs.
+                Codage attendu :
+                  1 = superviseur / encadrant (a des personnes sous sa
+                      responsabilité directe)
+                  2 = non-superviseur
+                IMPORTANT : cette variable n'est utilisée que pour les
+                salariés (is_employee == 1). Pour les indépendants, sa
+                valeur peut être NA sans incidence sur le résultat.
+
+  selfemp_no_employees  (character, optionnel, défaut = NULL)
+                Nom de la colonne indiquant si l'indépendant n'a aucun salarié
+                (correspond à `selfemp_withemployees` dans l'EWCS 2024).
+                Codage attendu : 2 = indépendant sans salarié.
+                Lorsque cette variable est fournie, les répondants codés 2
+                sont forcés dans la catégorie `se<=10` (empstat == 2),
+                quelle que soit la valeur de `nb_workers`.
+                Si NULL (défaut), l'amendement n'est pas appliqué.
+
+  add_labels    (logical, optionnel, défaut = TRUE)
+                Si TRUE, ajoute la colonne `ESEC08_lbl` contenant un facteur
+                R avec les libellés de classe en français.
+
+  suffix        (character, optionnel, défaut = "")
+                Suffixe ajouté aux noms des colonnes créées. Utile pour
+                comparer deux versions du schéma sur le même jeu de données.
+                Exemple : suffix = "_v2" → colonnes empstat_v2, ESEC08_v2,
+                ESEC08_lbl_v2.
+
+
+────────────────────────────────────────────────────────────────────────────────
+4. VALEUR RETOURNÉE
+────────────────────────────────────────────────────────────────────────────────
+
+  Le data.frame `data` original avec les colonnes supplémentaires suivantes
+  (les noms peuvent varier selon `suffix`) :
+
+  empstat
+    Facteur à 4 niveaux résumant la situation combinée :
+      se10+   indépendant avec 10 travailleurs ou plus dans l'unité locale
+      se<=10  indépendant avec moins de 10 travailleurs
+      sup     salarié occupant un poste de supervision / d'encadrement
+      emp     salarié sans fonction d'encadrement
+
+  ESEC08
+    Entier. Classe ESeC 08 :
+      1  Dirigeants, professions libérales et intellectuelles
+      2  Professions intermédiaires et techniques qualifiées
+      3  Employés qualifiés
+      4  Petits indépendants (hors agriculture)
+      5  Agriculteurs
+      6  Contre-maîtres et techniciens peu qualifiés
+      7  Employés peu qualifiés : commerce et service
+      8  Ouvriers qualifiés
+      9  Agents d'entretien, manœuvres, livreurs
+     -99 Non classifiable (information manquante ou code ISCO non affecté)
+     -98 Non classifiable (code sentinelle supplémentaire)
+     -97 Non classifiable (code sentinelle supplémentaire)
+
+  ESEC08_lbl  (uniquement si add_labels = TRUE)
+    Facteur R reprenant les libellés ci-dessus. Les niveaux -99, -98 et -97
+    sont tous étiquetés "NA" (conformément au code source de référence).
+
+
+────────────────────────────────────────────────────────────────────────────────
+5. LOGIQUE DE CONSTRUCTION (résumé)
+────────────────────────────────────────────────────────────────────────────────
+
+  Étape 1 — empstat
+    La situation d'emploi est combinée en quatre catégories :
+      - indépendant avec grande unité locale (≥10)      → se10+
+      - indépendant avec petite unité locale (<10)       → se<=10
+      - salarié encadrant                                → sup
+      - salarié sans encadrement                         → emp
+
+    Amendement (si selfemp_no_employees est fourni) :
+    Les indépendants codés 2 dans cette variable (= sans aucun salarié)
+    sont forcés en se<=10, quelle que soit la valeur de nb_workers.
+
+  Étape 2 — ESEC08
+    On part du code ISCO-2 comme valeur initiale, puis on écrase selon des
+    tables de correspondance différentes pour chaque catégorie d'empstat.
+    Les règles sont appliquées dans l'ordre suivant, propre à chaque groupe :
+      (a) Indépendants ≥10 salariés
+      (b) Indépendants <10 salariés
+      (c) Salariés superviseurs
+      (d) Salariés non-superviseurs
+
+  Étape 3 — Cas non classifiables
+    Toute valeur resté ≥10 après recodage, ou NA, est remplacée par -99.
+    Cela concerne les répondants pour lesquels l'information sur le statut
+    d'emploi, la taille de l'unité ou la supervision est manquante.
+
+
+────────────────────────────────────────────────────────────────────────────────
+6. EXEMPLE COMPLET
+────────────────────────────────────────────────────────────────────────────────
+
+  # Chargement de la fonction
+  source("compute_esec08.R")
+
+  # Jeu de données fictif
+  df <- data.frame(
+    isco2        = c(11, 23, 52, 62, 81, 14, 33, 91),
+    statut       = c( 1,  1,  1,  2,  1,  2,  1,  1),
+    taille       = c(NA, NA, NA,  1, NA,  2, NA, NA),
+    encadrant    = c( 1,  2,  2, NA,  2, NA,  1,  2),
+    sans_salarie = c(NA, NA, NA,  2, NA,  1, NA, NA)
+  )
+
+  # Application de la fonction (avec amendement indépendants sans salariés)
+  df <- compute_esec08(df,
+                       ISCO2                = "isco2",
+                       is_employee          = "statut",
+                       nb_workers           = "taille",
+                       is_supervisor        = "encadrant",
+                       selfemp_no_employees = "sans_salarie")
+
+  # Résultats
+  table(df$ESEC08_lbl, useNA = "always")
+  table(df$empstat,    useNA = "always")
+
+
+────────────────────────────────────────────────────────────────────────────────
+7. NOTES ET AVERTISSEMENTS
+────────────────────────────────────────────────────────────────────────────────
+
+  • La fonction ne modifie pas les colonnes d'entrée d'origine.
+
+  • Si un répondant est indépendant (is_employee == 2) mais que nb_workers
+    est NA, empstat sera NA et la classe sera -99 (non classifiable).
+    Exception : si selfemp_no_employees est fourni et vaut 2 pour ce
+    répondant, il sera forcé en se<=10 (empstat == 2) même si nb_workers
+    est NA.
+
+  • Si un répondant est salarié (is_employee == 1) mais que is_supervisor
+    est NA, empstat sera NA et la classe sera -99.
+
+  • Les niveaux sentinelles -98 et -97 sont inclus dans le facteur ESEC08_lbl
+    (label "NA") pour rester conformes au code source de référence. En
+    pratique, ces valeurs ne sont pas produites par la fonction elle-même.
+
+  • Le label des valeurs non classifiables est "NA" (chaîne de caractères),
+    conformément au code source de référence EWCS 2024.
+
+  • Le paramètre `suffix` est utile lors de comparaisons méthodologiques
+    (ex. tester différentes définitions de la supervision).
+
+  • Les libellés de classe sont en français. Pour une version anglophone,
+    il suffit de modifier le vecteur `labels` dans la section 5 du code.
+
+
+────────────────────────────────────────────────────────────────────────────────
+8. DÉPENDANCES
+────────────────────────────────────────────────────────────────────────────────
+
+  Aucun package externe requis. La fonction utilise uniquement des fonctions
+  de base R (stats inclus dans toute installation standard).
+  Testé sous R >= 4.0.
+
+
+────────────────────────────────────────────────────────────────────────────────
+9. RÉFÉRENCE
+────────────────────────────────────────────────────────────────────────────────
+
+  Harrison, E. & Rose, D. (2006). The European Socio-economic Classification
+  (ESeC) User Guide. University of Essex, Colchester.
+
+  Le schéma de recodage est adapté de la syntaxe officielle EWCS 2024
+  (European Working Conditions Survey, Eurofound).
+
+================================================================================
