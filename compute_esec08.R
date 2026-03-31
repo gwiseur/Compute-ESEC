@@ -18,12 +18,6 @@
 #' @param is_supervisor Nom (chaîne) de la variable position managériale dans `data`.
 #'                    Codage : 1 = superviseur/encadrant, 2 = non-superviseur.
 #'                    Utilisée uniquement pour les salariés.
-#' @param selfemp_no_employees Nom (chaîne, optionnel) de la variable indiquant si
-#'                    l'indépendant n'a aucun salarié (équivalent de `selfemp_withemployees`
-#'                    dans l'EWCS). Codage attendu : 2 = indépendant sans salarié.
-#'                    Si renseignée, ces répondants sont forcés en catégorie `se<=10`
-#'                    (empstat == 2), quelle que soit la valeur de `nb_workers`.
-#'                    Défaut : NULL (amendement non appliqué).
 #' @param add_labels  Logique. Si TRUE (défaut), ajoute une colonne `ESEC08_lbl`
 #'                    avec les libellés de classe en français.
 #' @param suffix      Suffixe optionnel (chaîne) ajouté aux noms des nouvelles
@@ -57,7 +51,6 @@ compute_esec08 <- function(data,
                            is_employee,
                            nb_workers,
                            is_supervisor,
-                           selfemp_no_employees = NULL,
                            add_labels = TRUE,
                            suffix     = "") {
 
@@ -67,9 +60,6 @@ compute_esec08 <- function(data,
     if (!v %in% names(data))
       stop(sprintf("Variable '%s' introuvable dans data.", v))
   }
-  if (!is.null(selfemp_no_employees) && !selfemp_no_employees %in% names(data))
-    stop(sprintf("Variable '%s' introuvable dans data.", selfemp_no_employees))
-
   isco   <- data[[ISCO2]]
   emp    <- data[[is_employee]]    # 1 = salarié, 2 = indépendant
   taille <- data[[nb_workers]]     # 1 = <10, 2 = >=10
@@ -84,12 +74,6 @@ compute_esec08 <- function(data,
   empstat[emp == 2 & taille == 1]  <- 2L  # indépendant <10
   empstat[emp == 1 & spv   == 1]   <- 3L  # salarié superviseur
   empstat[emp == 1 & spv   == 2]   <- 4L  # salarié non-superviseur
-
-  # Amendement : indépendants sans aucun salarié → forcés en se<=10 (empstat == 2)
-  if (!is.null(selfemp_no_employees)) {
-    no_emp <- data[[selfemp_no_employees]]
-    empstat[no_emp == 2] <- 2L
-  }
 
   # ── 2. ESEC08 : affectation de classe ───────────────────────────────────────
   esec <- isco  # on part de l'ISCO-2 comme valeur de départ
