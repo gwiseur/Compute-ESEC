@@ -1,5 +1,7 @@
 # Compute-ESEC : une fonction pour générer la classification ESEC appliquée au contexte belge
 
+1. INTRODUCTION
+
 La fonction `compute_esec08()` construit le schéma de classe ESeC 08 à partir
 de variables d'entrée harmonisées :
   - la profession codée en ISCO à 2 chiffres,
@@ -16,10 +18,7 @@ Elle retourne le data.frame original enrichi de trois nouvelles colonnes :
 Cette fonction implémente les règles de classification ESeC 2008 sans inclure
 les étapes de préparation spécifiques à certaines bases de données (ex. EU-SILC).
 
-
-────────────────────────────────────────────────────────────────────────────────
 2. UTILISATION
-────────────────────────────────────────────────────────────────────────────────
 
   data <- compute_esec08(
     data,
@@ -33,10 +32,7 @@ les étapes de préparation spécifiques à certaines bases de données (ex. EU-
     suffix                = ""       # optionnel, "" par défaut
   )
 
-
-────────────────────────────────────────────────────────────────────────────────
 3. PARAMÈTRES
-────────────────────────────────────────────────────────────────────────────────
 
   data          (data.frame, obligatoire)
                 Le jeu de données contenant les variables d'entrée.
@@ -103,10 +99,7 @@ les étapes de préparation spécifiques à certaines bases de données (ex. EU-
                 Exemple : suffix = "_v2" → colonnes empstat_v2, ESEC08_v2,
                 ESEC08_lbl_v2.
 
-
-────────────────────────────────────────────────────────────────────────────────
 4. VALEUR RETOURNÉE
-────────────────────────────────────────────────────────────────────────────────
 
   Le data.frame `data` original avec les colonnes supplémentaires suivantes
   (les noms peuvent varier selon `suffix`) :
