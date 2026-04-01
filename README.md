@@ -1,7 +1,5 @@
 # Compute-ESEC : une fonction pour générer la classification ESEC appliquée au contexte belge
 
-INTRODUCTION
-
 La fonction `compute_esec08()` construit le schéma de classe ESeC 08 à partir
 de variables d'entrée harmonisées :
   - la profession codée en ISCO à 2 chiffres,
