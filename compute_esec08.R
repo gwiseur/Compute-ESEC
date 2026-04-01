@@ -9,7 +9,8 @@
 #' @param ISCO2       Nom (chaîne) de la variable ISCO à 2 chiffres dans `data`.
 #'                    Doit être numérique (entiers 1–96).
 #' @param is_employee Nom (chaîne) de la variable statut d'emploi dans `data`.
-#'                    Codage : 1 = salarié, 2 = indépendant.
+#'                    Codage : 1 = salarié, 2 = indépendant. 
+#'                    Attention : dans ESEC, les aidants (family workers) sont considérés comme des salariés
 #' @param nb_workers  Nom (chaîne) de la variable taille de l'unité locale dans `data`.
 #'                    Codage : 1 = moins de 10 travailleurs, 2 = 10 travailleurs ou plus.
 #'                    Utilisée uniquement pour les indépendants.
