@@ -1,11 +1,11 @@
 # Compute-ESEC : une fonction pour générer la classification ESEC appliquée au contexte belge
 
-1. INTRODUCTION
+INTRODUCTION
 
 La fonction `compute_esec08()` construit le schéma de classe ESeC 08 à partir
 de variables d'entrée harmonisées :
   - la profession codée en ISCO à 2 chiffres,
-  - le statut d'emploi (salarié / indépendant),
+  - le statut d'emploi (salarié / indépendant) : **Attention : dans ESEC, les aidants (_family workers_) sont considérés comme des salariés**
   - la taille de l'unité locale (pour les indépendants),
   - la position de supervision/encadrement (pour les salariés),
   - la présence ou non de salariés pour les indépendants.
