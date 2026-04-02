@@ -1,6 +1,6 @@
 # ==============================================================================
 # compute_esec08.R
-# Fonction de construction du schéma de classe ESeC 2008 (ESEG)
+# Fonction de construction du schéma de classe ESeC 2008
 # ==============================================================================
 
 #' Calcule le schéma de classe ESeC 08 (European Socio-economic Classification)
