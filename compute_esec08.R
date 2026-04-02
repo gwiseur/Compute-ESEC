@@ -161,9 +161,9 @@ compute_esec08 <- function(data,
         "Employés peu qualifiés : commerce et service",            # 7
         "Ouvriers qualifiés",                                      # 8
         "Agents d'entretien, manœuvres, livreurs",                # 9
-        "NA",                                                      # -99
-        "NA",                                                      # -98
-        "NA"                                                       # -97
+        NA_real_,                                                      # -99
+        NA_real_,                                                      # -98
+        NA_real_                                                       # -97
       )
     )
   }
